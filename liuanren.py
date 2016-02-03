@@ -72,6 +72,7 @@ class Liuanren():
         # 提交回复。
     # 获取回复帖子需要的地址与表达formhash.
     # 先取帖子的地址。解析出tid参数即可。
+    # 还需要fid http://bbs.luanren.com/forum.php?mod=forumdisplay&fid=238
     #
     def get_replyinfo(self,topic_url):
         xx = self.opener.open(urllib2.Request(topic_url))
@@ -89,21 +90,76 @@ class Liuanren():
             print(u"获取表单formhash失败")
             exit()
 
-        # 解析参数
+        # 解析参数.判断url是否存在tid。如果不存在，则执行正则
         result=urlparse.urlparse(topic_url)
-        urlparse.parse_qs(result.query,True)
-        params=urlparse.parse_qs(result.query,True)
-        reply_url = "http://bbs.luanren.com/forum.php?mod=post&action=reply&fid=3&tid="+params['tid'][0]+"&extra=page\%3D1&replysubmit=yes&infloat=yes&handlekey=fastpost&inajax=1"
-        return {"formhash":formhash,"reply_url":reply_url}
+        if result.query == "":
+            pattern = re.compile(".*?thread-(.*?)-1-1.html",re.S)
+            result = re.findall(pattern,topic_url)
+            tid = result[0]
+        else:
+            urlparse.parse_qs(result.query,True)
+            params=urlparse.parse_qs(result.query,True)
+            tid = params['tid'][0]
+        if not tid.isdigit():
+            print(u"获取文章的tid失败")
+            exit()
 
+        # 获取fid <a href="http://bbs.luanren.com/forum.php?mod=forumdisplay&amp;fid=238">返回列表</a>
+        fid_url = ''
+        fid = ''
+        pattern2 = re.compile('<span class="pgb y"><a href="(.*?)">.*?</a></span>',re.S)
+        result2 = re.findall(pattern2,topic_html)
+        if result2:
+            fid_url = result2[0]
+            # print(fid)
+            # exit()
+        if fid_url == '':
+            print(u"获取fid_url失败")
+            exit()
+        else:
+            # 解析fid
+            result3=urlparse.urlparse(fid_url)
+            if result3.query == "":
+                print(u"fid_url没有包含fid参数")
+                exit()
+            else:
+                params3=urlparse.parse_qs(result3.query,True)
+                fid = params3['fid'][0]
+        print(fid)
+        # exit()
+
+
+
+
+        reply_url = "http://bbs.luanren.com/forum.php?mod=post&action=reply&fid="+fid+"&tid="+tid+"&extra=page\%3D1&replysubmit=yes&infloat=yes&handlekey=fastpost&inajax=1"
+        return {"formhash":formhash,"reply_url":reply_url}
+    # 获取最新发布的帖子。包含链接。时间 作者。
+    def get_newpost(self):
+        html = urllib.urlopen("http://bbs.luanren.com/forum.php?mod=guide&view=newthread").read()
+        # print(html.decode('gbk'))
+        # <a href="http://bbs.luanren.com/forum.php?mod=viewthread&amp;tid=5591445&amp;extra=" target="_blank" class="xst">男人常吃豆腐 精子“减产”</a>
+        pattern_article = re.compile('<th class="common">.*?<a href="(.*?)" target="_blank".*?>(.*?)</a>.*?</th>',re.S);
+        result_article = re.findall(pattern_article,html)
+        #帖子列表。里面每一个元素是一个帖子。一个帖子是一个字典。
+        articles = []
+        if result_article:
+            for item in result_article:
+                # print item
+                # exit()
+                # continue
+                #每一个帖子都是一个字典。包含2个key
+                article = {}
+                article['href'] = item[0]
+                article['title'] = item[1]
+                #print article
+                # print item[1].decode('gbk')
+                # continue
+                #添加帖子到列表尾部
+                articles.append(article)
+        return articles
     def test(self):
         req2 = urllib2.Request(Liuanren.home_url)
         result2 = self.opener.open(req2)
         print(result2.read().decode('gbk'))
-
-
-
-
-
 if __name__ == '__main__':
     pass
