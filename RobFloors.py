@@ -278,7 +278,7 @@ def reply_topic(opener, reply_url, formhash, msg):
 
 # 为了避免异常。再套一个方法。循环。
 
-def replay_main(name):
+def reply_main(name):
     # 读取配置。
     config = ConfigParser.RawConfigParser()
     config.read('robfloors.ini')
@@ -428,6 +428,19 @@ def send_mail(to_list,sub,content):
         print str(e)
         return False
 
+#回帖线程。执行的方法.
+#套一个异常处理。发生邮件。
+def reply_main2(name):
+    try:
+        replay_main(name)
+    except Exception, e:
+        print(u"发生异常")
+        if send_mail(mailto_list,"六安人论坛抢楼大赛",u"六安人论坛抢楼大赛 %s" % time.strftime('%Y-%m-%d %H:%M:%S')):
+            print "发送成功"
+        else:
+            print "发送失败"
+
+
 
 # 抢楼的线程执行的函数。需要传递特定的账号。回复的信息。进行抢楼操作。
 
@@ -437,43 +450,23 @@ def send_mail(to_list,sub,content):
 
 # 主程序
 def main():
-    # get_username("http://bbs.luanren.com/forum.php?mod=viewthread&tid=4139087",200)
-    # get_username("http://bbs.luanren.com/forum.php?mod=viewthread&tid=4139087&page=1#pid5107373",200)
-    # get_lastnum("http://bbs.luanren.com/forum.php?mod=viewthread&tid=4139087")
-    # get_lastnum("http://bbs.luanren.com/thread-5591889-1-1.html")
-    # replay_main("http://bbs.luanren.com/thread-5592491-1-1.html")
-    # replay_main("http://bbs.luanren.com/thread-5591704-1-1.html")
-    # get_config()
-    # set_config("zhanghao1","username","test")
-    # set_config("zhanghao1","password","test123")
-    # get_config()
-    # update_floor()
-    # replay_main(1)
-    # replay_main(2)
+    # if send_mail(mailto_list,"你好，我是吴文付",u"我是吴文付，我来自中国。刘安人路太难！"):
+    #     print "发送成功"
+    # else:
+    #     print "发送失败"
+    # exit()
 
-    if send_mail(mailto_list,"你好，我是吴文付",u"我是吴文付，我来自中国。刘安人路太难！"):
-        print "发送成功"
-    else:
-        print "发送失败"
-    exit()
-
+    #更新楼层。
     my_thread = MyThread(update_floor, 0)
+    #回帖
+    my_thread1 = MyThread(reply_main2, 1)
+    my_thread2 = MyThread(reply_main2, 2)
 
-    my_thread1 = MyThread(replay_main, 1)
-    my_thread2 = MyThread(replay_main, 2)
-
-    # 锁。
-    mutex = threading.Lock()
-
+    # 锁。todo:暂时没用
+    # mutex = threading.Lock()
     my_thread.start()
     my_thread1.start()
     my_thread2.start()
-
-    my_thread.join()
-    my_thread1.join()
-    my_thread2.join()
-    pass
-
 
 if __name__ == '__main__':
     main()
