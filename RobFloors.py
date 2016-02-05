@@ -258,23 +258,10 @@ def replay_main(name):
     config = ConfigParser.RawConfigParser()
     config.read('robfloors.ini')
     topic_url = config.get("global","url")
-    speed = config.get("global","speed")
-    floors = config.get("global","floors")
-    if floors =="":
-        print(u"没有楼层可以抢")
-        exit()
-    #如果低于6秒。则修改6
-    if int(speed) < 6:
-        speed = 6
-    speed = float(speed)
     #根据name 读取哪个账号。
     username = config.get("account_%d" % name,"username")
     password = config.get("account_%d" % name,"password")
-    status = config.get("account_%d" % name,"status")
-    #该账号不再抢楼。
-    if int(status) != 1:
-        print(u"该账号的状态不为1，不参与抢楼")
-        exit()
+
     msgs = config.get("account_%d" % name,"msgs").split("#") #该账号回复的信息内容
     # print(msgs)
     # print(username)
@@ -282,6 +269,22 @@ def replay_main(name):
     # return
     opener = login_bbs(username, password)
     while True:
+        #每一次的回复。都去读取一次配置文件。
+        floors = config.get("global","floors")
+        speed = config.get("global","speed")
+        if floors =="":
+            print(u"没有楼层可以抢")
+            exit()
+        #如果低于6秒。则修改6
+        if int(speed) < 6:
+            speed = 6
+        speed = float(speed)
+        #读取账号的状态
+        status = config.get("account_%d" % name,"status")
+        #该账号不再抢楼。
+        if int(status) != 1:
+            print(u"该账号的状态不为1，不参与抢楼")
+            exit()
         replyinfo = get_replyinfo(opener, topic_url)
         time.sleep(1)
         if not replyinfo['status']:
@@ -301,7 +304,7 @@ def is_stop():
 #修改楼层参数。例如 当前楼层为10.则楼层参数只保留 大于10的参数。
 #同时修改速度参数。判断最后楼层与中奖楼层的距离。如果距离很近。则修改速度。
 #运算时，需要转换int
-def update_floor():
+def update_floor(name):
     config = ConfigParser.RawConfigParser()
     config.read('robfloors.ini')
     floors = config.get("global","floors")
@@ -320,20 +323,32 @@ def update_floor():
     last_num = get_lastnum(topic_url)
     #过滤掉低于 最后楼层。
     new_floor_list = [ i for i in floor_list if int(i) > int(last_num)]
-    #进行一次排序。
-    new_floor_list.sort()
-    #获取最小中奖楼层。
-    min_floor = new_floor_list[0]
+
+
+    if new_floor_list and len(new_floor_list) > 0:
+        # exit()
+        #进行一次排序。
+        new_floor_list.sort()
+        #获取最小中奖楼层。
+        min_floor = new_floor_list[0]
+    else:
+        min_floor = False
+
+
+    print(new_floor_list)
+
     #转为字符串，存入配置。
     temp = ",".join(new_floor_list)
     set_config("global","floors",temp)
 
     #更新速度参数。差值低于 5。则修正速度为 6秒一次。否则为2.5分一次。
-    if (int(min_floor)- int(last_num)) <= 5:
-        speed = 6
+    if not min_floor and (int(min_floor)- int(last_num)) <= 5:
+        speed = 10
     else:
-        speed = 60*2+30
+        speed = 60*2+10
     set_config("global","speed",speed)
+    #1分钟更新一次。
+    time.sleep(60)
 
 # 抢楼的线程执行的函数。需要传递特定的账号。回复的信息。进行抢楼操作。
 
@@ -357,12 +372,21 @@ def main():
     # replay_main(1)
     # replay_main(2)
 
-    my_thread = MyThread(replay_main,1)
-    my_thread1 = MyThread(replay_main,2)
+    my_thread = MyThread(update_floor,0)
+
+    my_thread1 = MyThread(replay_main,1)
+    my_thread2 = MyThread(replay_main,2)
+
+    #锁。
+    mutex = threading.Lock()
+
     my_thread.start()
     my_thread1.start()
+    my_thread2.start()
+
     my_thread.join()
     my_thread1.join()
+    my_thread2.join()
     pass
 
 
