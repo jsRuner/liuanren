@@ -16,13 +16,7 @@ saoli
 saoli123
 """
 import urllib,urllib2,re,json,httplib,time,os,cookielib,urlparse,random,socket
-
-
-socket.setdefaulttimeout(20)
-
-def func():
-    pass
-
+socket.setdefaulttimeout(50)
 
 class Liuanren():
     login_url = "http://bbs.luanren.com/member.php?mod=logging&action=login&loginsubmit=yes&infloat=yes&lssubmit=yes&inajax=1"
@@ -51,17 +45,9 @@ class Liuanren():
         # 获取cookie。
         req = urllib2.Request(Liuanren.login_url,post_data)
         opener.open(req)
-
-        # print(result.read())
-
-        # xx = opener.open(urllib2.Request(self.home_url))
-        # print(xx.read())
-        # result.close()
-        # exit()
         # 保存cookie
         ckjar.save(ignore_discard=True, ignore_expires=True)
         return opener;
-    # http://bbs.luanren.com/forum.php?mod=post&action=reply&fid=3&tid=5591403&extra=page%3D1&replysubmit=yes&infloat=yes&handlekey=fastpost&inajax=1
     def reply_topic(self,reply_url,formhash,msg):
         # 获取表单formhash
         headers = {
@@ -78,19 +64,11 @@ class Liuanren():
         req3 = urllib2.Request(reply_url,post_data,headers)
         rs = self.opener.open(req3)
         print(rs.read().decode('gbk'))
-        pass
-        # 提交回复。
-    # 获取回复帖子需要的地址与表达formhash.
-    # 先取帖子的地址。解析出tid参数即可。
-    # 还需要fid http://bbs.luanren.com/forum.php?mod=forumdisplay&fid=238
-    #
     def get_replyinfo(self,topic_url):
         print(u'获取回帖的信息')
         xx = self.opener.open(urllib2.Request(topic_url))
         status = True #状态。true表示可以回复
         topic_html = xx.read()
-        print(topic_html)
-        xx.close()
         pattern = re.compile('<input type="hidden" name="formhash" value="(.*?)" />',re.S)
         formhashs = re.findall(pattern,topic_html)
 
@@ -330,18 +308,26 @@ class Liuanren():
             msgindex = random.randint(0,len(msgs)-1)
             self.reply_topic(replyinfo['reply_url'],replyinfo['formhash'],msgs[msgindex])
             time.sleep(60*2+30)
+    #
     def keep_shui(self,topic_url):
             while True:
                 replyinfo = self.get_replyinfo(topic_url)
-                time.sleep(1)
+                time.sleep(5)
                 if not replyinfo['status']:
                     print(u'该文章未能获取回复的信息：%s' % topic_url)
                     continue
-                msgs = [u"雨天路滑，大家注意行车安全，避让行人",u"我要勋章 我要勋章 我要勋章",u"冷空气下降，各位坛友注意及时增添衣物..........",u"小手一抖，经验到手。楼主写的不错。2016新年快乐",u"这是神一样的十五个字么我的天啊 标准的十五字回复真是越来越多了 我不会告诉你我是专门来混经验的 呦呦！老夫是神话无可超越的神话～呦 看看我的签名貌似真的很黄很暴力 我想肯定会有人数这句话有多少字 如果你真的不知道有这句话的存在 我觉得此帖必删那我先删前留名了",u"现在的小女孩，十几岁毛还没长齐就和人家xxoo了，到二十多岁的时候不知道换了多少男朋友，一个月好几拨。还他妈无耻的大喊男人侮辱了她的身体，骗了她的心。对于这种女人 我只想说四个字:请联系我",u"小手一抖，经验到手。楼主写的不错。2016新年快乐",u"在看完这帖子以后,我没有立即回复,因为我生怕我庸俗不堪的回复会玷污了这网上少有的帖子.但是我还是回复了,因为觉得如果不能在如此精彩的帖子后面留下自己的网名,那我死也不会瞑目的!能够在如此精彩的帖子后面留下自己的网名是多么骄傲的一件事啊!楼主,请原谅我的自私"]
+                msgs = [u"勋章勋章勋章勋章勋章勋章勋章勋章勋章",u"我要勋章 我要勋章 我要勋章",u"冷空气下降，各位坛友注意及时增添衣物..........",u"小手一抖，经验到手。楼主写的不错。2016新年快乐",u"这是神一样的十五个字么我的天啊 标准的十五字回复真是越来越多了 我不会告诉你我是专门来混经验的 呦呦！老夫是神话无可超越的神话～呦 看看我的签名貌似真的很黄很暴力 我想肯定会有人数这句话有多少字 如果你真的不知道有这句话的存在 我觉得此帖必删那我先删前留名了",u"现在的小女孩，十几岁毛还没长齐就和人家xxoo了，到二十多岁的时候不知道换了多少男朋友，一个月好几拨。还他妈无耻的大喊男人侮辱了她的身体，骗了她的心。对于这种女人 我只想说四个字:请联系我",u"小手一抖，经验到手。楼主写的不错。2016新年快乐",u"在看完这帖子以后,我没有立即回复,因为我生怕我庸俗不堪的回复会玷污了这网上少有的帖子.但是我还是回复了,因为觉得如果不能在如此精彩的帖子后面留下自己的网名,那我死也不会瞑目的!能够在如此精彩的帖子后面留下自己的网名是多么骄傲的一件事啊!楼主,请原谅我的自私"]
                 msgindex = random.randint(0,len(msgs)-1)
                 print(msgs[msgindex])
                 self.reply_topic(replyinfo['reply_url'],replyinfo['formhash'],msgs[msgindex])
                 time.sleep(60*2+4)
+                if msgindex == 2:
+                    urllib.urlopen("http://bbs.luanren.com")
+
+
+
+
+
 
 
 
@@ -352,6 +338,11 @@ class Liuanren():
         result2 = self.opener.open(req2)
         print(result2.read().decode('gbk'))
 if __name__ == '__main__':
-    liuanren = Liuanren()
-    liuanren.keep_shui("http://bbs.luanren.com/forum.php?mod=viewthread&tid=5236375")
-    # pass
+    while True:
+        try:
+            liuanren = Liuanren()
+            liuanren.keep_shui("http://bbs.luanren.com/forum.php?mod=viewthread&tid=5236375")
+            print(u"这里不应该执行。。。")
+        except Exception,e:
+            print(u"出现异常,睡眠10分钟后重新请求")
+            time.sleep(60*10)
