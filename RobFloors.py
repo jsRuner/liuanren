@@ -253,6 +253,9 @@ def reply_topic(opener, reply_url, formhash, msg):
 #一个线程。只负责一个账号的回复。
 #需要一个参数。例如1或者2.表明读取的时哪一个账号。
 #该函数。根据配置文件。进行回复帖子。
+
+#为了避免异常。再套一个方法。循环。
+
 def replay_main(name):
     #读取配置。
     config = ConfigParser.RawConfigParser()
@@ -261,15 +264,19 @@ def replay_main(name):
     #根据name 读取哪个账号。
     username = config.get("account_%d" % name,"username")
     password = config.get("account_%d" % name,"password")
-
     msgs = config.get("account_%d" % name,"msgs").split("#") #该账号回复的信息内容
     # print(msgs)
-    # print(username)
+    print(u"账号%d:%s在执行" % (name,username))
     # print(password)
     # return
     opener = login_bbs(username, password)
     while True:
+        if not isstart("06:00:00","23:59:59"):
+            print(u"未到工作时间")
+            time.sleep(30)
+            continue
         #每一次的回复。都去读取一次配置文件。
+        config.read('robfloors.ini') #该操作需要读取。否则只读内存里面的数据，修改的配置不生效
         floors = config.get("global","floors")
         speed = config.get("global","speed")
         if floors =="":
@@ -285,7 +292,9 @@ def replay_main(name):
         if int(status) != 1:
             print(u"该账号的状态不为1，不参与抢楼")
             exit()
+        print(u"账号%d:%s的速度为如下:%d" % (name,username,speed))
         replyinfo = get_replyinfo(opener, topic_url)
+        print(u"获取回帖信息操作完成")
         time.sleep(1)
         if not replyinfo['status']:
             print(u'该文章未能获取回复的信息：%s' % topic_url)
@@ -293,7 +302,9 @@ def replay_main(name):
             continue
         msgindex = random.randint(0, len(msgs) - 1)
         print(msgs[msgindex])
+
         reply_topic(opener, replyinfo['reply_url'], replyinfo['formhash'],msgs[msgindex].decode('utf-8'))
+        print(u"回帖操作完成，进入等待%d秒" % speed)
         time.sleep(speed)
 
 #判断 配置文件中的楼层是否已经 全部被占。
@@ -322,9 +333,12 @@ def update_floor(name):
     #获取最后一个楼层。
     last_num = get_lastnum(topic_url)
     #过滤掉低于 最后楼层。
-    new_floor_list = [ i for i in floor_list if int(i) > int(last_num)]
-
-
+    # new_floor_list = [ i for i in floor_list if int(i) > int(last_num)]
+    new_floor_list = []
+    for item in floor_list:
+        floor_num = int(item)
+        if int(item) > int(last_num):
+            new_floor_list.append(floor_num)
     if new_floor_list and len(new_floor_list) > 0:
         # exit()
         #进行一次排序。
@@ -337,18 +351,41 @@ def update_floor(name):
 
     print(new_floor_list)
 
+    #再转为str
+    for index, item in enumerate(new_floor_list):
+        new_floor_list[index] = str(item)
+
     #转为字符串，存入配置。
     temp = ",".join(new_floor_list)
     set_config("global","floors",temp)
 
     #更新速度参数。差值低于 5。则修正速度为 6秒一次。否则为2.5分一次。
-    if not min_floor and (int(min_floor)- int(last_num)) <= 5:
-        speed = 10
+    if not min_floor and (int(min_floor)- int(last_num)) <= 10:
+        speed = 7
     else:
         speed = 60*2+10
     set_config("global","speed",speed)
     #1分钟更新一次。
     time.sleep(60)
+
+
+#是否进行水贴。判断时间。开始与结束时间
+def isstart(start,end):
+    xstr = time.strftime('%Y-%m-%d')
+    st = xstr+" "+start
+    ed = xstr+" "+end
+
+
+    b = time.time()
+    t1 = time.mktime(time.strptime(st,'%Y-%m-%d %H:%M:%S'))
+
+    t2 = time.mktime(time.strptime(ed,'%Y-%m-%d %H:%M:%S'))
+
+    #小于开始时间，大于结束时间。则为False
+    if b < t1 or b > t2:
+        return  False
+    else:
+        return True
 
 # 抢楼的线程执行的函数。需要传递特定的账号。回复的信息。进行抢楼操作。
 
