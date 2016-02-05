@@ -17,6 +17,7 @@ import time
 import urlparse
 import re
 import urllib,urllib2,os,json,cookielib,random
+import ConfigParser
 
 # 登录地址
 login_url = "http://bbs.luanren.com/member.php?mod=logging&action=login&loginsubmit=yes&infloat=yes&lssubmit=yes&inajax=1"
@@ -110,16 +111,38 @@ def get_lastnum(topic_url):
     if result2:
         lastfloor= result2[-1]
         num = lastfloor[1]
+    if not num.isdigit():
+        num = 0
     print("当前帖子最后的楼层数为 %s" % num)
     return num
 
 # 获取配置文件信息。
+#[('username', 'zhangwenwei'), ('password', 'saoli123')]
+# [('username', 'test'), ('password', 'test123')]
 def get_config():
-    pass
+    config = ConfigParser.RawConfigParser()
+    config.read('robfloors.ini')
+    ses = config.sections()
+    # print(ses)
+    for se in ses:
+        # print(se)
+        print(config.items(se))
+    # print config.get("global", "ip")
+    # print config.get("Default", "username")
+
 
 # 修改配置文件的信息。配置信息。todo：多个账号咋办。
-def set_config():
-    pass
+# 3个参数。分组。 索引。值。
+def set_config(se,key,value):
+    config = ConfigParser.ConfigParser()
+    config.read('robfloors.ini')
+    #看是否存在该Section，不存在则创建
+    if not config.has_section(se):
+        config.add_section(se)
+    config.set(se, key, value)
+    # 写入文件
+    config.write(open('robfloors.ini', "w"))
+
 #登录操作。需要账号与密码。 这里不需要保存cookie.
 def login_bbs(username,password):
     data = {
@@ -226,44 +249,97 @@ def reply_topic(opener, reply_url, formhash, msg):
     #     return True
 
 #回复帖子主函数。
-def replay_main(topic_url):
-    # 登录。
-    # opener = login_bbs("saoli", "saoli123")
-    opener = login_bbs("zhangwenwei", "zhangwenwei123")
+#需要读取配置文件的账号信息。
+#一个线程。只负责一个账号的回复。
+#需要一个参数。例如1或者2.表明读取的时哪一个账号。
+#该函数。根据配置文件。进行回复帖子。
+def replay_main(name):
+    #读取配置。
+    config = ConfigParser.RawConfigParser()
+    config.read('robfloors.ini')
+    topic_url = config.get("global","url")
+    speed = config.get("global","speed")
+    floors = config.get("global","floors")
+    if floors =="":
+        print(u"没有楼层可以抢")
+        exit()
+    #如果低于6秒。则修改6
+    if int(speed) < 6:
+        speed = 6
+    speed = float(speed)
+    #根据name 读取哪个账号。
+    username = config.get("account_%d" % name,"username")
+    password = config.get("account_%d" % name,"password")
+    status = config.get("account_%d" % name,"status")
+    #该账号不再抢楼。
+    if int(status) != 1:
+        print(u"该账号的状态不为1，不参与抢楼")
+        exit()
+    msgs = config.get("account_%d" % name,"msgs").split("#") #该账号回复的信息内容
+    # print(msgs)
+    # print(username)
+    # print(password)
+    # return
+    opener = login_bbs(username, password)
     while True:
         replyinfo = get_replyinfo(opener, topic_url)
         time.sleep(1)
         if not replyinfo['status']:
             print(u'该文章未能获取回复的信息：%s' % topic_url)
+            time.sleep(speed)
             continue
-        '''
-        msgs = [u"雨天路滑，大家注意行车安全，避让行人", u"我要勋章 我要勋章 我要勋章", u"冷空气下降，各位坛友注意及时增添衣物..........", u"小手一抖，经验到手。楼主写的不错。2016新年快乐",
-                u"这是神一样的十五个字么我的天啊 标准的十五字回复真是越来越多了 我不会告诉你我是专门来混经验的 呦呦！老夫是神话无可超越的神话～呦 看看我的签名貌似真的很黄很暴力 我想肯定会有人数这句话有多少字 如果你真的不知道有这句话的存在 我觉得此帖必删那我先删前留名了",
-                u"现在的小女孩，十几岁毛还没长齐就和人家xxoo了，到二十多岁的时候不知道换了多少男朋友，一个月好几拨。还他妈无耻的大喊男人侮辱了她的身体，骗了她的心。对于这种女人 我只想说四个字:请联系我",
-                u"小手一抖，经验到手。楼主写的不错。2016新年快乐",
-                u"在看完这帖子以后,我没有立即回复,因为我生怕我庸俗不堪的回复会玷污了这网上少有的帖子.但是我还是回复了,因为觉得如果不能在如此精彩的帖子后面留下自己的网名,那我死也不会瞑目的!能够在如此精彩的帖子后面留下自己的网名是多么骄傲的一件事啊!楼主,请原谅我的自私"]
-        '''
-        msgs = [u"我擦，这价格是不是太贵了？我也有一个，如果你卖掉了，告诉一声",u"帮你顶顶。早日卖掉。"]
         msgindex = random.randint(0, len(msgs) - 1)
         print(msgs[msgindex])
-        reply_topic(opener, replyinfo['reply_url'], replyinfo['formhash'], msgs[msgindex])
-        time.sleep(60 * 2 + 4)
-    # 获取信息
-    # 回复
-    # 循环进行。
+        reply_topic(opener, replyinfo['reply_url'], replyinfo['formhash'],msgs[msgindex].decode('utf-8'))
+        time.sleep(speed)
+
+#判断 配置文件中的楼层是否已经 全部被占。
+# 获取最后一个楼层。如果该楼层大于 配置文件中的最大值。则表示程序应该停止。
+#修改配置文件中的stop参数
+def is_stop():
+    pass
+#修改楼层参数。例如 当前楼层为10.则楼层参数只保留 大于10的参数。
+#同时修改速度参数。判断最后楼层与中奖楼层的距离。如果距离很近。则修改速度。
+#运算时，需要转换int
+def update_floor():
+    config = ConfigParser.RawConfigParser()
+    config.read('robfloors.ini')
+    floors = config.get("global","floors")
+    topic_url = config.get("global","url")
+    floor_list = []
+    #多个楼层时
+    if floors.find(",") != -1:
+        floor_list = floors.split(",")
+    elif floors.isdigit(): #一个楼层时
+        floor_list.append(floors)
+    else: #没有楼层时
+        set_config("global","floors","")
+        #应该退出系统。同时修改状态。让其他线程也退出执行。
+        exit()
+    #获取最后一个楼层。
+    last_num = get_lastnum(topic_url)
+    #过滤掉低于 最后楼层。
+    new_floor_list = [ i for i in floor_list if int(i) > int(last_num)]
+    #进行一次排序。
+    new_floor_list.sort()
+    #获取最小中奖楼层。
+    min_floor = new_floor_list[0]
+    #转为字符串，存入配置。
+    temp = ",".join(new_floor_list)
+    set_config("global","floors",temp)
+
+    #更新速度参数。差值低于 5。则修正速度为 6秒一次。否则为2.5分一次。
+    if (int(min_floor)- int(last_num)) <= 5:
+        speed = 6
+    else:
+        speed = 60*2+30
+    set_config("global","speed",speed)
 
 # 抢楼的线程执行的函数。需要传递特定的账号。回复的信息。进行抢楼操作。
 
 #判断是否中奖的函数。中了则修改配置文件。没中则不操作。 决定账号是否还继续进行回复的操作.
 
 #判断当前的楼层。靠近则修改配置文件。超过了则修改配置文件。 控制回帖的速度。
-
-
-
-
-
-
-
 
 # 主程序
 def main():
@@ -272,10 +348,22 @@ def main():
     # get_lastnum("http://bbs.luanren.com/forum.php?mod=viewthread&tid=4139087")
     # get_lastnum("http://bbs.luanren.com/thread-5591889-1-1.html")
     # replay_main("http://bbs.luanren.com/thread-5592491-1-1.html")
-    replay_main("http://bbs.luanren.com/thread-5591704-1-1.html")
-    # str = '<?xml version="1.0" encoding="gbk"?><root><![CDATA[<script type="text/javascript" reload="1">if(typeof succeedhandle_fastpost==) {succeedhandle_fastpost(forum.php?mod=viewthread&tid=5592491&pid=15365725&page=1&extra=page%255C%255C%3D1#pid15365725非常感谢，回复发布成功，现在将转入主题页，请稍候……[ 点击这里转入主题列表 ]});}</script>]]></root>'.encode('gbk')
-    # print(str.find("成功"))
-    # pass
+    # replay_main("http://bbs.luanren.com/thread-5591704-1-1.html")
+    # get_config()
+    # set_config("zhanghao1","username","test")
+    # set_config("zhanghao1","password","test123")
+    # get_config()
+    # update_floor()
+    # replay_main(1)
+    # replay_main(2)
+
+    my_thread = MyThread(replay_main,1)
+    my_thread1 = MyThread(replay_main,2)
+    my_thread.start()
+    my_thread1.start()
+    my_thread.join()
+    my_thread1.join()
+    pass
 
 
 if __name__ == '__main__':
