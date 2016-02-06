@@ -18,6 +18,7 @@ import urlparse
 import re
 import urllib, urllib2, os, json, cookielib, random
 import ConfigParser
+import traceback
 
 import smtplib
 from email.mime.text import MIMEText
@@ -301,9 +302,12 @@ def reply_main(name):
         config.read('robfloors.ini')  # 该操作需要读取。否则只读内存里面的数据，修改的配置不生效
         floors = config.get("global", "floors")
         speed = config.get("global", "speed")
-        if floors == "":
+        if floors == "0":
             print(u"没有楼层可以抢")
-            exit()
+            #这里中断循环。而非return
+            break
+            # return
+            # exit()
         # 如果低于6秒。则修改6
         if int(speed) < 6:
             speed = 6
@@ -313,7 +317,9 @@ def reply_main(name):
         # 该账号不再抢楼。
         if int(status) != 1:
             print(u"该账号的状态不为1，不参与抢楼")
-            exit()
+            break
+            # return
+            # exit()
         print(u"账号%d:%s的速度为如下:%d" % (name, username, speed))
         replyinfo = get_replyinfo(opener, topic_url)
         print(u"获取回帖信息操作完成")
@@ -349,12 +355,15 @@ def update_floor(name):
     # 多个楼层时
     if floors.find(",") != -1:
         floor_list = floors.split(",")
-    elif floors.isdigit():  # 一个楼层时
+    elif floors.isdigit() and int(floors) != 0:  # 一个楼层时.且不可以为0
         floor_list.append(floors)
     else:  # 没有楼层时
-        set_config("global", "floors", "")
+        set_config("global", "floors", "0")
+        #如果返回0则不再循环。
+        return 0
         # 应该退出系统。同时修改状态。让其他线程也退出执行。
-        exit()
+        #这里是错误的。方法里应该是返回，而不是退出。退出报错。
+        # exit()
     # 获取最后一个楼层。
     last_num = get_lastnum(topic_url)
     # 过滤掉低于 最后楼层。
@@ -432,14 +441,23 @@ def send_mail(to_list,sub,content):
 #套一个异常处理。发生邮件。
 def reply_main2(name):
     try:
-        replay_main(name)
+        reply_main(name)
     except Exception, e:
-        print(u"发生异常")
+        print(u"发生异常 %s")
         if send_mail(mailto_list,"六安人论坛抢楼大赛",u"六安人论坛抢楼大赛 %s" % time.strftime('%Y-%m-%d %H:%M:%S')):
-            print "发送成功"
+            print u"发送成功"
         else:
-            print "发送失败"
-
+            print u"发送失败"
+#添加循环，不断进行检查楼层
+def update_floor2(name):
+    while True:
+        try:
+            x = update_floor(name)
+            if x == 0:
+                break
+        except Exception,e:
+            print(u"%s" % traceback.format_exc())
+            time.sleep(60)
 
 
 # 抢楼的线程执行的函数。需要传递特定的账号。回复的信息。进行抢楼操作。
@@ -457,7 +475,7 @@ def main():
     # exit()
 
     #更新楼层。
-    my_thread = MyThread(update_floor, 0)
+    my_thread = MyThread(update_floor2, 0)
     #回帖
     my_thread1 = MyThread(reply_main2, 1)
     my_thread2 = MyThread(reply_main2, 2)
